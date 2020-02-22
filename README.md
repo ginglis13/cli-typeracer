@@ -1,4 +1,4 @@
-# typeracer in go
+# cli-typeracer
 
 ### Q's/Strat
 - should client verify input or server?
@@ -29,6 +29,15 @@ TODO: cli parsing
 - prompt for a nick if the user didn't specify in the cl args
 - send client state to server
 - **maybe juts call join_game() w/ the newly created game id**
+```go
+type ClientState struct {
+	userID string
+	gameID int
+	progress int // length of correct input to show comparison to other players
+	userInput string // TODO: check input on client or server side
+	complete bool // indicates client has finished the input
+}
+```
 
 
 ### server
@@ -45,3 +54,9 @@ TODO: cli parsing
 `choose_quote()`
 - pick from list of quotes/phrases wtvr
 - prolly just a text file
+```go
+type GameState struct {
+	clients []*ClientState // take length to verify max of 4 participants
+	// also use the progress attribute to check against other players
+}
+```
