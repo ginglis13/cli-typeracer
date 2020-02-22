@@ -5,6 +5,7 @@ import (
 	"github.com/eiannone/keyboard"
 	"github.com/fatih/color"
 	"net/http"
+	"flag"
 )
 
 
@@ -15,10 +16,11 @@ type ClientState struct {
 	progress int // length of correct input to show comparison to other players
 	userInput string // TODO: check input on client or server side
 	complete bool // indicates client has finished the input
+	isCreate bool // indicates that the user is the game creator - for asking if they want to start another
 }
 
 
-func sendState(*client ClientState){
+func sendState(client *ClientState){
 
 }
 
@@ -68,6 +70,15 @@ func checkInput(chars []int32, s []byte) bool {
 
 func main() {
 
+	/* Parse Args */
+	gameID  := flag.Int("g", 0, "Join game by game id")
+	nick   := flag.String("n", "", "Set nickname")
+	host   := flag.String("host", "", "Host address/domain of game")
+	port   := flag.Int("p", 443, "Host port")
+
+	flag.Parse()
+
+	/* Open Keyboard */
 	err := keyboard.Open()
 	if err != nil {
 		panic(err)
