@@ -1,5 +1,23 @@
 # cli-typeracer
 
+### Installing Sauce
+
+First, install dependencies for the client:
+```
+	go get -u github.com/eiannone/keyboard
+	go get -u github.com/fatih/color
+```
+
+### Homebrew
+
+TODO: trcli-client
+TODO: trcli-server
+
+### AUR
+
+TODO: trcli-client
+TODO: trcli-server
+
 ### Q's/Strat
 - should client verify input or server?
   - currently client. leaving it as that. will put on server eventually if needed
@@ -13,18 +31,27 @@
 - client - show status bar of how far they are in comparison to others
   - use #'s * length of correct input entered, mod 20 ?
 
+### real typeracer
+- word-by-word checking rather than character-by-character
+  - so mark a word as correct once it is complete - no backspacing after (leaving this as last TODO)
+
 ### client
 
 `main()`
+
 TODO: cli parsing
 - host
 - port
 - maybe -nick [nick] -join [gameid]
+
 `join_game()`
+
 - input a game id to join w others
 - prompt for a nick if the user didn't specify in the cl args
 - send client state to server
+
 `create_game()`
+
 - return a game id to initialize a game for others to join
 - prompt for a nick if the user didn't specify in the cl args
 - send client state to server
@@ -42,16 +69,23 @@ type ClientState struct {
 
 ### server
 
-- **TCP vs. HTTP**
+- REST API, thinking that the endpoint is the unique gameid
+- look into `http.NewServeMux()` for routing req
+- or look into this alternative [mux](https://github.com/gorilla/mux#examples) pkg
+
 `init_game()`
+
 - create game id, return to client
 - should probably start a new goroutine, esp w multiple games occurring simultaneously on server
+
 `end_game()`
 - check that one client with correct game id has sent a game state that indicates they finished
 - should stop game on all other clients
 - free the game id from the map
   - maybe use a free list of game ids... or not, this app doesn't yet have to be that complicated
+
 `choose_quote()`
+
 - pick from list of quotes/phrases wtvr
 - prolly just a text file
 ```go
