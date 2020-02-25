@@ -1,15 +1,21 @@
-jackage main
+package main
 
 import (
     "fmt"
     "net/http"
+	"encoding/json"
+	"flag"
+	"log"
 )
 
 type GameState struct {
-	clients []*ClientState // take length to verify max of 4 participants
+	Message string
+	Completed bool
+	//	clients []*ClientState // take length to verify max of 4 participants
 	// also use the progress attribute to check against other players
 }
 
+/*
 game := make(map[int]GameState) // keep track of games in map TODO allow for multiple games at a time
 
 func joinGame(games map[int]GameState, gameID int){
@@ -20,9 +26,26 @@ func joinGame(games map[int]GameState, gameID int){
 		}
 	}
 }
+*/
 
 func hello(w http.ResponseWriter, req *http.Request) {
-    fmt.Fprintf(w, "hello\n")
+
+	log.Printf("%s %s /typeracer from %s", req.Method, req.Proto, req.RemoteAddr)
+
+	// read incoming json request
+	var gs GameState
+	err := json.NewDecoder(req.Body).Decode(&gs)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("Client Request JSON: %v", gs)
+	gs.Completed = true
+	log.Printf("Server Response JSON: %v", gs)
+
+	// write back to client
+	json.NewEncoder(w).Encode(gs)
 }
 
 func headers(w http.ResponseWriter, req *http.Request) {
@@ -35,8 +58,15 @@ func headers(w http.ResponseWriter, req *http.Request) {
 
 func main() {
 
+	/* Parse Args */
+	port := flag.Int("p", 8080, "Host port")
+
+	flag.Parse()
+
     http.HandleFunc("/typeracer", hello)
     http.HandleFunc("/headers", headers)
 
-    http.ListenAndServe(":8090", nil)
+	p := fmt.Sprintf(":%v", *port)
+	log.Printf("Listening on port %v", *port)
+    http.ListenAndServe(p, nil)
 }
