@@ -50,7 +50,6 @@ TODO: trcli-server
 
 `main()`
 
-TODO: cli parsing
 - host
 - port
 - maybe -nick [nick] -join [gameid]
@@ -66,7 +65,7 @@ TODO: cli parsing
 - return a game id to initialize a game for others to join
 - prompt for a nick if the user didn't specify in the cl args
 - send client state to server
-- **maybe juts call join_game() w/ the newly created game id**
+- **maybe just call join_game() w/ the newly created game id**
 ```go
 type ClientState struct {
 	userID string

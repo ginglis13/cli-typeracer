@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"github.com/eiannone/keyboard"
 	"github.com/fatih/color"
-	"net/http"
-	"flag"
+//	"net/http"
+//	"flag"
 )
 
 
@@ -71,12 +71,12 @@ func checkInput(chars []int32, s []byte) bool {
 func main() {
 
 	/* Parse Args */
-	gameID  := flag.Int("g", 0, "Join game by game id")
-	nick   := flag.String("n", "", "Set nickname")
-	host   := flag.String("host", "", "Host address/domain of game")
-	port   := flag.Int("p", 443, "Host port")
+//	gameID  := flag.Int("g", 0, "Join game by game id")
+//	nick   := flag.String("n", "", "Set nickname")
+//	host   := flag.String("host", "", "Host address/domain of game")
+//	port   := flag.Int("p", 443, "Host port")
 
-	flag.Parse()
+//	flag.Parse()
 
 	/* Open Keyboard */
 	err := keyboard.Open()
