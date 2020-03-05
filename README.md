@@ -1,5 +1,13 @@
 # cli-typeracer
 
+cli for playing typeracer, and a server to host games on.
+
+At the moment, this is very bare bones and mostly skeleton code. Anyone can contribute if you want,
+but it might be difficult at this point in the project since there isn't much in place quite yet.
+
+The server currently accepts JSON requests which you can mess with if you'd like, and the client
+just does some simple checking (and uses colors) to implement some parts of typeracer
+
 ### Installing Sauce
 
 First, install dependencies for the client:
@@ -7,6 +15,9 @@ First, install dependencies for the client:
 	go get -u github.com/eiannone/keyboard
 	go get -u github.com/fatih/color
 ```
+
+Run the client with `go run client.go` and the server with `go run server.go`. They do
+not communicate with each other at this point in the project.
 
 ### Homebrew
 
@@ -70,6 +81,7 @@ type ClientState struct {
 ### server
 
 - REST API, thinking that the endpoint is the unique gameid
+  + thinking potentially switching to tcp if this implementation isn't ideal
 - look into `http.NewServeMux()` for routing req
 - or look into this alternative [mux](https://github.com/gorilla/mux#examples) pkg
 
