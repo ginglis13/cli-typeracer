@@ -8,10 +8,20 @@ import (
 	"log"
 )
 
+type ClientState struct {
+	UserID string
+	//gameID int
+	//progress int // length of correct input to show comparison to other players
+	UserInput string // TODO: check input on client or server side
+	Complete bool // indicates client has finished the input
+	//isCreate bool // indicates that the user is the game creator - for asking if they want to start another
+}
+
 type GameState struct {
-	Message string
-	Completed bool
-	//	clients []*ClientState // take length to verify max of 4 participants
+	//Message string
+	Over bool
+	Clients map[string]ClientState // take length to verify max of 4 participants
+	//clients []*ClientState // take length to verify max of 4 participants
 	// also use the progress attribute to check against other players
 }
 
@@ -28,20 +38,25 @@ func joinGame(games map[int]GameState, gameID int){
 }
 */
 
-func hello(w http.ResponseWriter, req *http.Request) {
+func typeracer(w http.ResponseWriter, req *http.Request) {
 
 	log.Printf("%s %s /typeracer from %s", req.Method, req.Proto, req.RemoteAddr)
 
 	// read incoming json request
-	var gs GameState
-	err := json.NewDecoder(req.Body).Decode(&gs)
+	var cs ClientState
+	gs := GameState{false, make(map[string]ClientState)}
+	err := json.NewDecoder(req.Body).Decode(&cs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("Client Request JSON: %v", gs)
-	gs.Completed = true
+
+	log.Printf("Client Request JSON: %v", cs)
+	gs.Clients[cs.UserID] = cs
+	if cs.Complete == true {
+		gs.Over = true
+	}
 	log.Printf("Server Response JSON: %v", gs)
 
 	// write back to client
@@ -63,7 +78,7 @@ func main() {
 
 	flag.Parse()
 
-    http.HandleFunc("/typeracer", hello)
+    http.HandleFunc("/typeracer", typeracer)
     http.HandleFunc("/headers", headers)
 
 	p := fmt.Sprintf(":%v", *port)

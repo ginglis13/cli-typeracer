@@ -4,29 +4,62 @@ import (
 	"fmt"
 	"github.com/eiannone/keyboard"
 	"github.com/fatih/color"
-//	"net/http"
+	"net/http"
+	"encoding/json"
+	"log"
+	"bytes"
+	"strings"
 //	"flag"
 )
 
-
-
-type ClientState struct {
-	userID string
-	gameID int
-	progress int // length of correct input to show comparison to other players
-	userInput string // TODO: check input on client or server side
-	complete bool // indicates client has finished the input
-	isCreate bool // indicates that the user is the game creator - for asking if they want to start another
+type GameState struct {
+	//Message string
+	//Completed bool
+	client *ClientState // take length to verify max of 4 participants
+	//clients []*ClientState // take length to verify max of 4 participants
+	// also use the progress attribute to check against other players
 }
 
+type ClientState struct {
+	UserID string
+	//gameID int
+	Progress int // length of correct input to show comparison to other players
+	UserInput string // TODO: check input on client or server side
+	Complete bool // indicates client has finished the input
+	//isCreate bool // indicates that the user is the game creator - for asking if they want to start another
+}
 
-func sendState(client *ClientState){
+func sendState(c *ClientState) {
+
+	message := map[string]interface{}{
+		"userID": c.UserID,
+		"userInput": c.UserInput,
+		"complete": c.Complete,
+	}
+
+	fmt.Println(c)
+
+	bytesRepresentation, err := json.Marshal(message)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	resp, err := http.Post("http://localhost:8080/typeracer", "application/json", bytes.NewBuffer(bytesRepresentation))
+	if err != nil {
+		log.Fatalln(err)
+
+	}
+
+	var result map[string]interface{}
+
+	json.NewDecoder(resp.Body).Decode(&result)
+	log.Println(result)
 
 }
 
 
 func delInput(chars []int32) []int32{
-	if len(chars) > 0{
+	if len(chars) > 0 {
 		return append(chars[:len(chars)-1])
 	} else {
 		return chars
@@ -78,6 +111,8 @@ func main() {
 
 //	flag.Parse()
 
+	c := ClientState{"ginglis", 0, "", false}
+
 	/* Open Keyboard */
 	err := keyboard.Open()
 	if err != nil {
@@ -85,10 +120,13 @@ func main() {
 	}
 	defer keyboard.Close()
 
-
 	chars := make([]int32, 0)
 
-	_s := "test string"
+	_s := "test string."
+
+	ss := strings.Split(_s, " ")
+	fmt.Println(ss)
+
 	s := []byte(_s)
 
 	fmt.Println("Press ESC to quit")
@@ -109,8 +147,11 @@ func main() {
 
 		if res := checkInput(chars, s); res && len(chars) == len(s){
 			fmt.Println("Game over.")
-			break
+			c.Complete = true
+			//break
 		}
 
+		c.UserInput = string(chars)
+		sendState(&c)
 	}
 }
