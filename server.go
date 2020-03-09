@@ -10,8 +10,8 @@ import (
 
 type ClientState struct {
 	UserID string
-	//gameID int
-	//progress int // length of correct input to show comparison to other players
+	GameID int
+	Progress int // length of correct input to show comparison to other players
 	UserInput string // TODO: check input on client or server side
 	Complete bool // indicates client has finished the input
 	//isCreate bool // indicates that the user is the game creator - for asking if they want to start another
@@ -19,6 +19,7 @@ type ClientState struct {
 
 type GameState struct {
 	//Message string
+	ID int
 	Over bool
 	Clients map[string]ClientState // take length to verify max of 4 participants
 	//clients []*ClientState // take length to verify max of 4 participants
@@ -44,12 +45,12 @@ func typeracer(w http.ResponseWriter, req *http.Request) {
 
 	// read incoming json request
 	var cs ClientState
-	gs := GameState{false, make(map[string]ClientState)}
 	err := json.NewDecoder(req.Body).Decode(&cs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	gs := GameState{cs.GameID, false, make(map[string]ClientState)}
 
 
 	log.Printf("Client Request JSON: %v", cs)
@@ -57,6 +58,10 @@ func typeracer(w http.ResponseWriter, req *http.Request) {
 	if cs.Complete == true {
 		gs.Over = true
 	}
+	if cs.GameID == -1 {
+		gs.ID = 10 // in place before multi game logic
+	}
+
 	log.Printf("Server Response JSON: %v", gs)
 
 	// write back to client

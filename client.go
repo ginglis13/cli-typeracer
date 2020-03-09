@@ -8,21 +8,22 @@ import (
 	"encoding/json"
 	"log"
 	"bytes"
+	"io/ioutil"
 	//"strings"
 	"flag"
 )
 
 type GameState struct {
 	//Message string
+	ID int
 	Over bool
-	client *ClientState // take length to verify max of 4 participants
-	//clients []*ClientState // take length to verify max of 4 participants
+	Clients map[string]ClientState // take length to verify max of 4 participants
 	// also use the progress attribute to check against other players
 }
 
 type ClientState struct {
 	UserID string
-	gameID int
+	GameID int
 	Progress int // length of correct input to show comparison to other players
 	UserInput string
 	Complete bool // indicates client has finished the input
@@ -101,6 +102,38 @@ func checkInput(chars []int32, s []byte) bool {
 
 }
 
+func beginGame(c *ClientState) int {
+	beginGame := map[string]interface{}{
+		"userID": c.UserID,
+		"gameID": c.GameID,
+	}
+
+	bytesRepresentation, err := json.Marshal(beginGame)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	resp, err := http.Post("http://localhost:8080/typeracer", "application/json", bytes.NewBuffer(bytesRepresentation))
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	body, readErr := ioutil.ReadAll(resp.Body)
+	if readErr != nil {
+		log.Fatalln(readErr)
+	}
+
+	gs := GameState{c.GameID, false, make(map[string]ClientState)}
+
+	jErr := json.Unmarshal(body, &gs)
+	if jErr != nil {
+		log.Fatalln(jErr)
+	}
+
+	fmt.Println(gs)
+
+	return 1
+}
+
 func main() {
 
 	/* Parse Args */
@@ -128,23 +161,10 @@ func main() {
 		fmt.Scanf("%s", &nick)
 	}
 
-	c := ClientState{nick, 0, "", false}
+	c := ClientState{nick, gameID, 0, "", false}
 
-
-	message := map[string]interface{}{
-		"userID": c.UserID,
-		"userInput": c.UserInput,
-		"complete": c.Complete,
-	}
-
-	bytesRepresentation, err := json.Marshal(message)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	resp, err := http.Post("http://localhost:8080/typeracer", "application/json", bytes.NewBuffer(bytesRepresentation))
-	if err != nil {
-		log.Fatalln(err)
-	}
+	/* return new gameID if -1 specified */
+	c.GameID = beginGame(&c)
 
 	/* Open Keyboard */
 	err := keyboard.Open()
@@ -161,7 +181,7 @@ func main() {
 
 	for {
 		/* clear screen, print prompt */
-		fmt.Print("\033[H\033[2J")
+		//fmt.Print("\033[H\033[2J")
 		fmt.Println("Quote:", _s)
 		res := checkInput(chars, s)
 
@@ -184,6 +204,6 @@ func main() {
 		}
 
 		c.UserInput = string(chars)
-		sendState(&c)
+		//sendState(&c)
 	}
 }
