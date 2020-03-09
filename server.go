@@ -38,6 +38,10 @@ func joinGame(games map[int]GameState, gameID int){
 	}
 }
 */
+func game(w http.ResponseWriter, req *http.Request, gs *GameState) {
+	// need to write an interface for HandleFunc to pass vars
+
+}
 
 func typeracer(w http.ResponseWriter, req *http.Request) {
 
@@ -63,6 +67,9 @@ func typeracer(w http.ResponseWriter, req *http.Request) {
 	}
 
 	log.Printf("Server Response JSON: %v", gs)
+
+	//gameEndPt := fmt.Sprintf("/typeracer/%v", gs.ID)
+    //http.HandleFunc(gameEndPt, game)
 
 	// write back to client
 	json.NewEncoder(w).Encode(gs)
