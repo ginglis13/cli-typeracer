@@ -86,7 +86,12 @@ type ClientState struct {
 
 `init_game()`
 
-- create game id, return to client
+- should receive a game id, nickname
+  - if game id is -1, return a newly generated game id in response.
+	- response from server should send a quote, so this must include opening a file only if new game
+	- generate a new endpoint for that gameid (**not sure if possible**)
+    - else, return just the message, and the status of other players
+- should prompt the creator of the game to begin (w/ just like enter or something)
 - should probably start a new goroutine, esp w multiple games occurring simultaneously on server
 
 `end_game()`

@@ -8,13 +8,13 @@ import (
 	"encoding/json"
 	"log"
 	"bytes"
-	"strings"
-//	"flag"
+	//"strings"
+	"flag"
 )
 
 type GameState struct {
 	//Message string
-	//Completed bool
+	Over bool
 	client *ClientState // take length to verify max of 4 participants
 	//clients []*ClientState // take length to verify max of 4 participants
 	// also use the progress attribute to check against other players
@@ -22,9 +22,9 @@ type GameState struct {
 
 type ClientState struct {
 	UserID string
-	//gameID int
+	gameID int
 	Progress int // length of correct input to show comparison to other players
-	UserInput string // TODO: check input on client or server side
+	UserInput string
 	Complete bool // indicates client has finished the input
 	//isCreate bool // indicates that the user is the game creator - for asking if they want to start another
 }
@@ -104,14 +104,47 @@ func checkInput(chars []int32, s []byte) bool {
 func main() {
 
 	/* Parse Args */
-//	gameID  := flag.Int("g", 0, "Join game by game id")
-//	nick   := flag.String("n", "", "Set nickname")
-//	host   := flag.String("host", "", "Host address/domain of game")
-//	port   := flag.Int("p", 443, "Host port")
+	var nick, host string
+	var port, gameID int
 
-//	flag.Parse()
+	flag.IntVar(&gameID, "g", 0, "Join game by game id")
+	flag.StringVar(&nick, "n", "", "Set nickname")
+	flag.StringVar(&host, "host", "localhost", "Host address/domain of game")
+	flag.IntVar(&port, "p", 8080, "Host port")
+	flag.Parse()
 
-	c := ClientState{"ginglis", 0, "", false}
+	fmt.Println("CLI Typeracer")
+	fmt.Println("Press ESC to quit")
+
+	fmt.Printf("Host is set to %v:%v\n", host, port)
+
+	if gameID == 0 {
+		fmt.Println("Enter the ID of the game you'd like to join, or enter -1 to start a new game:")
+		fmt.Scanf("%d", &gameID)
+	}
+
+	if nick == "" {
+		fmt.Println("Enter a nickname to join the game with:")
+		fmt.Scanf("%s", &nick)
+	}
+
+	c := ClientState{nick, 0, "", false}
+
+
+	message := map[string]interface{}{
+		"userID": c.UserID,
+		"userInput": c.UserInput,
+		"complete": c.Complete,
+	}
+
+	bytesRepresentation, err := json.Marshal(message)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	resp, err := http.Post("http://localhost:8080/typeracer", "application/json", bytes.NewBuffer(bytesRepresentation))
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	/* Open Keyboard */
 	err := keyboard.Open()
@@ -124,14 +157,13 @@ func main() {
 
 	_s := "test string."
 
-	ss := strings.Split(_s, " ")
-	fmt.Println(ss)
-
 	s := []byte(_s)
 
-	fmt.Println("Press ESC to quit")
 	for {
+		/* clear screen, print prompt */
+		fmt.Print("\033[H\033[2J")
 		fmt.Println("Quote:", _s)
+		res := checkInput(chars, s)
 
 		char, key, err := keyboard.GetKey()
 		if (err != nil) {
@@ -145,7 +177,7 @@ func main() {
 			chars = append(chars, char)
 		}
 
-		if res := checkInput(chars, s); res && len(chars) == len(s){
+		if res && len(chars) == len(s){
 			fmt.Println("Game over.")
 			c.Complete = true
 			//break
