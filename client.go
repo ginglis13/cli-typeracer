@@ -30,7 +30,7 @@ type ClientState struct {
 	//isCreate bool // indicates that the user is the game creator - for asking if they want to start another
 }
 
-func sendState(c *ClientState) {
+func sendState(c *ClientState, host string, port int) {
 
 	message := map[string]interface{}{
 		"userID": c.UserID,
@@ -45,7 +45,10 @@ func sendState(c *ClientState) {
 		log.Fatalln(err)
 	}
 
-	resp, err := http.Post("http://localhost:8080/typeracer", "application/json", bytes.NewBuffer(bytesRepresentation))
+	server := fmt.Sprintf("http://%s:%v/typeracer/%v", host, port, c.GameID)
+	fmt.Println(c.GameID)
+	fmt.Println(server)
+	resp, err := http.Post(server, "application/json", bytes.NewBuffer(bytesRepresentation))
 	if err != nil {
 		log.Fatalln(err)
 
@@ -54,7 +57,6 @@ func sendState(c *ClientState) {
 	var result map[string]interface{}
 
 	json.NewDecoder(resp.Body).Decode(&result)
-	log.Println(result)
 
 }
 
@@ -131,7 +133,7 @@ func beginGame(c *ClientState) int {
 
 	fmt.Println(gs)
 
-	return 1
+	return gs.ID
 }
 
 func main() {
@@ -204,6 +206,6 @@ func main() {
 		}
 
 		c.UserInput = string(chars)
-		//sendState(&c)
+		sendState(&c, host, port)
 	}
 }
