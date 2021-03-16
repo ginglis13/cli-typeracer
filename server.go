@@ -14,6 +14,7 @@ type ClientState struct {
 	Progress int // length of correct input to show comparison to other players
 	UserInput string // TODO: check input on client or server side
 	Complete bool // indicates client has finished the input
+	ResponseWriter http.ResponseWriter
 	//isCreate bool // indicates that the user is the game creator - for asking if they want to start another
 }
 
@@ -22,13 +23,14 @@ type GameState struct {
 	ID int
 	Over bool
 	Clients map[string]ClientState // take length to verify max of 4 participants
+	String string // the string/paragraph to type
 	//clients []*ClientState // take length to verify max of 4 participants
 	// also use the progress attribute to check against other players
 }
 
-/*
-game := make(map[int]GameState) // keep track of games in map TODO allow for multiple games at a time
+var GAMES = make(map[int]GameState) // keep track of games in map TODO allow for multiple games at a time
 
+/*
 func joinGame(games map[int]GameState, gameID int){
 	exists, gs = games[gameID]
 	if exists {
@@ -54,11 +56,30 @@ func typeracer(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	gs := GameState{cs.GameID, false, make(map[string]ClientState)}
+
+	// Check if the specified gameID is in map of Games
+	var gs GameState
+	if gs, isset := GAMES[cs.GameID]; isset == true {
+		// If Game is complete, send end state to all clients in the Game
+		if cs.Complete {
+			gs.Over = true
+			for _, client := range gs.Clients {
+				json.NewEncoder(client.ResponseWriter).Encode(gs)
+			}
+		}
+		cs.ResponseWriter = w
+		gs.Clients[cs.UserID] = cs
+		fmt.Println("CLIENTS:" , gs.Clients)
+	} else { // new game
+		cs.ResponseWriter = w
+		s := "test string."
+		gs := GameState{cs.GameID, false, make(map[string]ClientState), s}
+		gs.Clients[cs.UserID] = cs
+		GAMES[cs.GameID] = gs
+	}
 
 
 	log.Printf("Client Request JSON: %v", cs)
-	gs.Clients[cs.UserID] = cs
 	if cs.Complete == true {
 		gs.Over = true
 	}
@@ -72,6 +93,7 @@ func typeracer(w http.ResponseWriter, req *http.Request) {
     //http.HandleFunc(gameEndPt, game)
 
 	// write back to client
+	fmt.Println(gs)
 	json.NewEncoder(w).Encode(gs)
 }
 

@@ -18,6 +18,7 @@ type GameState struct {
 	ID int
 	Over bool
 	Clients map[string]ClientState // take length to verify max of 4 participants
+	String string // the string/paragraph to type
 	// also use the progress attribute to check against other players
 }
 
@@ -30,7 +31,7 @@ type ClientState struct {
 	//isCreate bool // indicates that the user is the game creator - for asking if they want to start another
 }
 
-func sendState(c *ClientState, host string, port int) {
+func sendState(c *ClientState, host string, port int) map[string]interface{}{
 
 	message := map[string]interface{}{
 		"userID": c.UserID,
@@ -45,9 +46,8 @@ func sendState(c *ClientState, host string, port int) {
 		log.Fatalln(err)
 	}
 
-	server := fmt.Sprintf("http://%s:%v/typeracer/%v", host, port, c.GameID)
-	fmt.Println(c.GameID)
-	fmt.Println(server)
+	//server := fmt.Sprintf("http://%s:%v/typeracer/%v", host, port, c.GameID)
+	server := fmt.Sprintf("http://%s:%v/typeracer", host, port)
 	resp, err := http.Post(server, "application/json", bytes.NewBuffer(bytesRepresentation))
 	if err != nil {
 		log.Fatalln(err)
@@ -57,6 +57,7 @@ func sendState(c *ClientState, host string, port int) {
 	var result map[string]interface{}
 
 	json.NewDecoder(resp.Body).Decode(&result)
+	return result
 
 }
 
@@ -124,7 +125,7 @@ func beginGame(c *ClientState) int {
 		log.Fatalln(readErr)
 	}
 
-	gs := GameState{c.GameID, false, make(map[string]ClientState)}
+	gs := GameState{c.GameID, false, make(map[string]ClientState), "test string."}
 
 	jErr := json.Unmarshal(body, &gs)
 	if jErr != nil {
@@ -188,12 +189,12 @@ func main() {
 		res := checkInput(chars, s)
 
 		char, key, err := keyboard.GetKey()
-		if (err != nil) {
+		if err != nil {
 			panic(err)
-		} else if (key == keyboard.KeyEsc) {
+		} else if key == keyboard.KeyEsc {
 			break
 		/* check for both KeyBackspace and KeyBackspace2 for delete */
-		} else if (key == keyboard.KeyBackspace2 || key == keyboard.KeyBackspace || key == keyboard.KeyDelete) {
+		} else if key == keyboard.KeyBackspace2 || key == keyboard.KeyBackspace || key == keyboard.KeyDelete {
 			chars = delInput(chars)
 		} else {
 			chars = append(chars, char)
@@ -202,10 +203,18 @@ func main() {
 		if res && len(chars) == len(s){
 			fmt.Println("Game over.")
 			c.Complete = true
+			sendState(&c, host, port)
 			//break
 		}
 
 		c.UserInput = string(chars)
-		sendState(&c, host, port)
+		fmt.Println(c)
+		game := sendState(&c, host, port)
+		fmt.Println("GAME:", game)
+		fmt.Println("GAME:", game["Over"])
+		if game["Over"] == true {
+			fmt.Println("GAME OVER")
+			break
+		}
 	}
 }
