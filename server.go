@@ -1,12 +1,12 @@
 package main
 
 import (
-    "fmt"
-    "net/http"
 	"encoding/json"
 	"flag"
-	"log"
+	"fmt"
 	"io/ioutil"
+	"log"
+	"net/http"
 	//"os"
 )
 
@@ -20,25 +20,26 @@ import (
 // 	//isCreate bool // indicates that the user is the game creator - for asking if they want to start another
 // }
 type ClientState struct {
-	UserID string `json:"UserID"`
-	GameID int  `json:"GameID"`
-	Progress int `json:"Progress"` // length of correct input to show comparison to other players
-	UserInput string `json:"UserInput"`
-	Complete bool `json:"Complete"` // indicates client has finished the input
+	UserID         string `json:"UserID"`
+	GameID         int    `json:"GameID"`
+	Progress       int    `json:"Progress"` // length of correct input to show comparison to other players
+	UserInput      string `json:"UserInput"`
+	Complete       bool   `json:"Complete"` // indicates client has finished the input
 	ResponseWriter http.ResponseWriter
 	//isCreate bool // indicates that the user is the game creator - for asking if they want to start another
 }
 
 type GameState struct {
 	//Message string
-	ID int
-	Over bool
+	ID      int
+	Over    bool
 	Clients map[string]ClientState // take length to verify max of 4 participants
-	String []byte // the string/paragraph to type
+	String  []byte                 // the string/paragraph to type
 	// also use the progress attribute to check against other players
 }
 
 type GameMap map[int]*GameState
+
 var GAMES = make(GameMap) // keep track of games in map TODO allow for multiple games at a time
 
 /*
@@ -101,7 +102,7 @@ func typeracer(w http.ResponseWriter, req *http.Request) {
 		}
 		//cs.ResponseWriter = w
 		gs.Clients[cs.UserID] = cs
-		fmt.Println("CLIENTS:" , gs.Clients)
+		fmt.Println("CLIENTS:", gs.Clients)
 	} else { // new game, TODO search for an open game (10 max)
 		cs.ResponseWriter = w
 		//_s := "test string."
@@ -111,39 +112,24 @@ func typeracer(w http.ResponseWriter, req *http.Request) {
 		fmt.Println("gs", gs)
 		gs.Clients[cs.UserID] = cs
 		GAMES[cs.GameID] = gs
-		fmt.Println("CLIENTS:" , gs.Clients)
+		fmt.Println("CLIENTS:", gs.Clients)
 	}
-
 
 	log.Printf("Client Request JSON: %v", cs)
-	// TODO remove below later when cs.GameID received correctly
-	//if cs.Complete == true {
-		//gs.Over = true
-	//}
-	/*
-	if cs.GameID == -1 {
-		gs.ID = 10 // in place before multi game logic
-		GAMES[gs.ID] = gs
-		fmt.Println("NEG 1")
-	}
-	*/
 
 	log.Printf("Server Response JSON: %v", gs)
 	log.Printf("GAME: %v", GAMES[cs.GameID])
-
-	//gameEndPt := fmt.Sprintf("/typeracer/%v", gs.ID)
-    //http.HandleFunc(gameEndPt, game)
 
 	// write back to client
 	json.NewEncoder(w).Encode(GAMES[cs.GameID])
 }
 
 func headers(w http.ResponseWriter, req *http.Request) {
-    for name, headers := range req.Header {
-        for _, h := range headers {
-            fmt.Fprintf(w, "%v: %v\n", name, h)
-        }
-    }
+	for name, headers := range req.Header {
+		for _, h := range headers {
+			fmt.Fprintf(w, "%v: %v\n", name, h)
+		}
+	}
 }
 
 func main() {
@@ -151,17 +137,17 @@ func main() {
 	/* Parse Args */
 	port := flag.Int("p", 8080, "Host port")
 	/*
-    f, _ := os.Create("/var/log/golang/golang-server.log")
-    defer f.Close()
-    log.SetOutput(f)
+	   f, _ := os.Create("/var/log/golang/golang-server.log")
+	   defer f.Close()
+	   log.SetOutput(f)
 	*/
 
 	flag.Parse()
 
-    http.HandleFunc("/typeracer", typeracer)
-    http.HandleFunc("/headers", headers)
+	http.HandleFunc("/typeracer", typeracer)
+	http.HandleFunc("/headers", headers)
 
 	p := fmt.Sprintf(":%v", *port)
 	log.Printf("Listening on port %v", *port)
-    http.ListenAndServe(p, nil)
+	http.ListenAndServe(p, nil)
 }

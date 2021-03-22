@@ -1,33 +1,34 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
+	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"strings"
+
 	"github.com/eiannone/keyboard"
 	"github.com/fatih/color"
-	"net/http"
-	"encoding/json"
-	"log"
-	"bytes"
-	"io/ioutil"
-	"strings"
-	"flag"
 )
 
 type GameState struct {
 	//Message string
-	ID int
-	Over bool
+	ID      int
+	Over    bool
 	Clients map[string]ClientState // take length to verify max of 4 participants
-	String []byte // the string/paragraph to type
+	String  []byte                 // the string/paragraph to type
 	// also use the progress attribute to check against other players
 }
 
 type ClientState struct {
-	UserID string `json:"UserID"`
-	GameID int  `json:"GameID"`
-	Progress int `json:"Progress"` // length of correct input to show comparison to other players
+	UserID    string `json:"UserID"`
+	GameID    int    `json:"GameID"`
+	Progress  int    `json:"Progress"` // length of correct input to show comparison to other players
 	UserInput string `json:"UserInput"`
-	Complete bool `json:"Complete"` // indicates client has finished the input
+	Complete  bool   `json:"Complete"` // indicates client has finished the input
 	//isCreate bool // indicates that the user is the game creator - for asking if they want to start another
 }
 
@@ -46,36 +47,19 @@ func gameOver(gs *GameState) {
 
 }
 
-func sendState(c *ClientState, host string, port int) *GameState {
-
-	/*
-	message := map[string]interface{}{
-		"userID": c.UserID,
-		"userInput": c.UserInput,
-		"complete": c.Complete,
-		"gameID": c.GameID,
-	}
-	*/
+func sendState(c *ClientState, host string, port int, game *GameState, gameOver chan bool) {
 
 	bytesRepresentation, err := json.Marshal(&c)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	//server := fmt.Sprintf("http://%s:%v/typeracer/%v", host, port, c.GameID)
 	server := fmt.Sprintf("http://%s:%v/typeracer", host, port)
 	resp, err := http.Post(server, "application/json", bytes.NewBuffer(bytesRepresentation))
 	if err != nil {
 		log.Fatalln(err)
 
 	}
-
-	/*
-	var result map[string]interface{}
-
-	json.NewDecoder(resp.Body).Decode(&result)
-	return result
-	*/
 
 	body, readErr := ioutil.ReadAll(resp.Body)
 	if readErr != nil {
@@ -93,13 +77,13 @@ func sendState(c *ClientState, host string, port int) *GameState {
 
 	// Set Game ID From Server Response
 	*&c.GameID = gs.ID
+	game = &gs
 
-	return &gs
+	gameOver <- gs.Over
 
 }
 
-
-func delInput(chars []int32) []int32{
+func delInput(chars []int32) []int32 {
 	if len(chars) > 0 {
 		return append(chars[:len(chars)-1])
 	} else {
@@ -110,9 +94,9 @@ func delInput(chars []int32) []int32{
 /* TODO: space is 0 in chars, but ascii 32 in s */
 func checkInput(chars []int32, s []byte) bool {
 	var cs string
-	for _, v := range chars{
+	for _, v := range chars {
 		/* space check */
-		if (v == 0){
+		if v == 0 {
 			v = ' '
 		}
 		cs = fmt.Sprintf("%s%c", cs, v)
@@ -120,13 +104,13 @@ func checkInput(chars []int32, s []byte) bool {
 	res := false
 	for i, v := range chars {
 		/* check str len */
-		if i > len(s) - 1 {
+		if i > len(s)-1 {
 			res = false
-		/* found a match */
+			/* found a match */
 		} else if v == int32(s[i]) {
 			res = true
-		/* space check */
-		} else if v == 0 && int32(s[i]) == 32{
+			/* space check */
+		} else if v == 0 && int32(s[i]) == 32 {
 			res = true
 		} else {
 			res = false
@@ -181,6 +165,9 @@ func beginGame(c *ClientState, host string, port int) *GameState {
 	return &gs
 }
 
+func concurrentSend(c chan GameState) {
+
+}
 
 func main() {
 
@@ -230,8 +217,10 @@ func main() {
 	//_s := "test string."
 
 	//s := []byte(_s)
+	overChan := make(chan bool)
 
 	for {
+		go sendState(&c, host, port, gs, overChan)
 		/* clear screen, print prompt */
 		//fmt.Print("\033[H\033[2J")
 		fmt.Println("Quote:", string(s))
@@ -242,28 +231,27 @@ func main() {
 			panic(err)
 		} else if key == keyboard.KeyEsc {
 			break
-		/* check for both KeyBackspace and KeyBackspace2 for delete */
+			/* check for both KeyBackspace and KeyBackspace2 for delete */
 		} else if key == keyboard.KeyBackspace2 || key == keyboard.KeyBackspace || key == keyboard.KeyDelete {
 			chars = delInput(chars)
 		} else {
 			chars = append(chars, char)
 		}
 
-		if res && len(chars) == len(s){
+		if res && len(chars) == len(s) {
 			fmt.Println("Game over.")
 			c.Complete = true
-			sendState(&c, host, port)
+			//sendState(&c, host, port, sendChan)
 			//break
 		}
 
+		over := <-overChan
+		fmt.Println("BOOL ON OVER CHAN", over)
+
 		c.UserInput = string(chars)
-		fmt.Println("SENDING TO GAME",c.GameID)
-		game := sendState(&c, host, port)
-		//c.GameID = game.ID.(int)
-		c.GameID = *&game.ID
-		fmt.Println("GAME:", c.GameID)
-		fmt.Println("GAME:", *&game.Over)
-		if *&game.Over == true {
+		c.GameID = *&gs.ID
+		fmt.Println("GAME:", *&gs.Over)
+		if over == true {
 			fmt.Println("GAME OVER")
 			gameOver(gs)
 			break
