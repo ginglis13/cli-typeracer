@@ -6,14 +6,25 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
+	"io/ioutil"
+	//"os"
 )
 
+// type ClientState struct {
+// 	UserID string
+// 	GameID int
+// 	Progress int // length of correct input to show comparison to other players
+// 	UserInput string // TODO: check input on client or server side
+// 	Complete bool // indicates client has finished the input
+// 	//ResponseWriter http.ResponseWriter
+// 	//isCreate bool // indicates that the user is the game creator - for asking if they want to start another
+// }
 type ClientState struct {
-	UserID string
-	GameID int
-	Progress int // length of correct input to show comparison to other players
-	UserInput string // TODO: check input on client or server side
-	Complete bool // indicates client has finished the input
+	UserID string `json:"UserID"`
+	GameID int  `json:"GameID"`
+	Progress int `json:"Progress"` // length of correct input to show comparison to other players
+	UserInput string `json:"UserInput"`
+	Complete bool `json:"Complete"` // indicates client has finished the input
 	ResponseWriter http.ResponseWriter
 	//isCreate bool // indicates that the user is the game creator - for asking if they want to start another
 }
@@ -23,12 +34,12 @@ type GameState struct {
 	ID int
 	Over bool
 	Clients map[string]ClientState // take length to verify max of 4 participants
-	String string // the string/paragraph to type
-	//clients []*ClientState // take length to verify max of 4 participants
+	String []byte // the string/paragraph to type
 	// also use the progress attribute to check against other players
 }
 
-var GAMES = make(map[int]GameState) // keep track of games in map TODO allow for multiple games at a time
+type GameMap map[int]*GameState
+var GAMES = make(GameMap) // keep track of games in map TODO allow for multiple games at a time
 
 /*
 func joinGame(games map[int]GameState, gameID int){
@@ -50,51 +61,81 @@ func typeracer(w http.ResponseWriter, req *http.Request) {
 	log.Printf("%s %s /typeracer from %s", req.Method, req.Proto, req.RemoteAddr)
 
 	// read incoming json request
-	var cs ClientState
-	err := json.NewDecoder(req.Body).Decode(&cs)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	//var cs ClientState
+	// err := json.NewDecoder(req.Body).Decode(&cs)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusBadRequest)
+	// 	return
+	// }
+
+	body, readErr := ioutil.ReadAll(req.Body)
+	if readErr != nil {
+		log.Fatalln(readErr)
 	}
 
+	cs := ClientState{}
+
+	jErr := json.Unmarshal(body, &cs)
+	if jErr != nil {
+		log.Fatalln(jErr)
+	}
+
+	cs.ResponseWriter = w
+	fmt.Println(cs)
+
 	// Check if the specified gameID is in map of Games
-	var gs GameState
-	if gs, isset := GAMES[cs.GameID]; isset == true {
+	var gs *GameState
+	var isset bool
+	s := []byte("test string.")
+	if gs, isset = GAMES[cs.GameID]; isset == true {
 		// If Game is complete, send end state to all clients in the Game
 		if cs.Complete {
-			gs.Over = true
-			for _, client := range gs.Clients {
-				json.NewEncoder(client.ResponseWriter).Encode(gs)
+			fmt.Println("AAAHH:", GAMES[cs.GameID].Clients)
+			fmt.Println("AAAHH:", GAMES[cs.GameID])
+			GAMES[cs.GameID].Over = true
+			for _, client := range GAMES[cs.GameID].Clients {
+				client.Complete = true
+				json.NewEncoder(client.ResponseWriter).Encode(GAMES[cs.GameID])
+				fmt.Println("GAME OVER SENT TO ", client.UserID)
 			}
 		}
-		cs.ResponseWriter = w
+		//cs.ResponseWriter = w
 		gs.Clients[cs.UserID] = cs
 		fmt.Println("CLIENTS:" , gs.Clients)
-	} else { // new game
+	} else { // new game, TODO search for an open game (10 max)
 		cs.ResponseWriter = w
-		s := "test string."
-		gs := GameState{cs.GameID, false, make(map[string]ClientState), s}
+		//_s := "test string."
+		//s := []byte(_s)
+		cs.GameID = 10
+		gs = &GameState{cs.GameID, false, make(map[string]ClientState), s}
+		fmt.Println("gs", gs)
 		gs.Clients[cs.UserID] = cs
 		GAMES[cs.GameID] = gs
+		fmt.Println("CLIENTS:" , gs.Clients)
 	}
 
 
 	log.Printf("Client Request JSON: %v", cs)
-	if cs.Complete == true {
-		gs.Over = true
-	}
+	// TODO remove below later when cs.GameID received correctly
+	//if cs.Complete == true {
+		//gs.Over = true
+	//}
+	/*
 	if cs.GameID == -1 {
 		gs.ID = 10 // in place before multi game logic
+		GAMES[gs.ID] = gs
+		fmt.Println("NEG 1")
 	}
+	*/
 
 	log.Printf("Server Response JSON: %v", gs)
+	log.Printf("GAME: %v", GAMES[cs.GameID])
 
 	//gameEndPt := fmt.Sprintf("/typeracer/%v", gs.ID)
     //http.HandleFunc(gameEndPt, game)
 
 	// write back to client
-	fmt.Println(gs)
-	json.NewEncoder(w).Encode(gs)
+	json.NewEncoder(w).Encode(GAMES[cs.GameID])
 }
 
 func headers(w http.ResponseWriter, req *http.Request) {
@@ -109,6 +150,11 @@ func main() {
 
 	/* Parse Args */
 	port := flag.Int("p", 8080, "Host port")
+	/*
+    f, _ := os.Create("/var/log/golang/golang-server.log")
+    defer f.Close()
+    log.SetOutput(f)
+	*/
 
 	flag.Parse()
 

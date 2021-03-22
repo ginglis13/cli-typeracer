@@ -9,7 +9,7 @@ import (
 	"log"
 	"bytes"
 	"io/ioutil"
-	//"strings"
+	"strings"
 	"flag"
 )
 
@@ -18,30 +18,46 @@ type GameState struct {
 	ID int
 	Over bool
 	Clients map[string]ClientState // take length to verify max of 4 participants
-	String string // the string/paragraph to type
+	String []byte // the string/paragraph to type
 	// also use the progress attribute to check against other players
 }
 
 type ClientState struct {
-	UserID string
-	GameID int
-	Progress int // length of correct input to show comparison to other players
-	UserInput string
-	Complete bool // indicates client has finished the input
+	UserID string `json:"UserID"`
+	GameID int  `json:"GameID"`
+	Progress int `json:"Progress"` // length of correct input to show comparison to other players
+	UserInput string `json:"UserInput"`
+	Complete bool `json:"Complete"` // indicates client has finished the input
 	//isCreate bool // indicates that the user is the game creator - for asking if they want to start another
 }
 
-func sendState(c *ClientState, host string, port int) map[string]interface{}{
+// Display Game Over Message, Winner, WPM, menu options to start over
+func gameOver(gs *GameState) {
+	fmt.Print("\033[H\033[2J")
+	fmt.Println(strings.Repeat("#", 8), "GAME OVER", strings.Repeat("#", 8))
+	fmt.Println("Winner: ")
+	fmt.Println("Player WPM: ")
+	finalGameState := *&gs.Clients
+	fmt.Println(finalGameState)
+	// Print WPM
+	for client, state := range finalGameState {
+		fmt.Printf("%10s: %5v WPM\n", client, state.Progress)
+	}
 
+}
+
+func sendState(c *ClientState, host string, port int) *GameState {
+
+	/*
 	message := map[string]interface{}{
 		"userID": c.UserID,
 		"userInput": c.UserInput,
 		"complete": c.Complete,
+		"gameID": c.GameID,
 	}
+	*/
 
-	fmt.Println(c)
-
-	bytesRepresentation, err := json.Marshal(message)
+	bytesRepresentation, err := json.Marshal(&c)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -54,10 +70,31 @@ func sendState(c *ClientState, host string, port int) map[string]interface{}{
 
 	}
 
+	/*
 	var result map[string]interface{}
 
 	json.NewDecoder(resp.Body).Decode(&result)
 	return result
+	*/
+
+	body, readErr := ioutil.ReadAll(resp.Body)
+	if readErr != nil {
+		log.Fatalln(readErr)
+	}
+
+	gs := GameState{c.GameID, false, make(map[string]ClientState), []byte("")}
+
+	jErr := json.Unmarshal(body, &gs)
+	if jErr != nil {
+		log.Fatalln(jErr)
+	}
+
+	fmt.Println("GS: ", gs)
+
+	// Set Game ID From Server Response
+	*&c.GameID = gs.ID
+
+	return &gs
 
 }
 
@@ -105,17 +142,21 @@ func checkInput(chars []int32, s []byte) bool {
 
 }
 
-func beginGame(c *ClientState) int {
+func beginGame(c *ClientState, host string, port int) *GameState {
 	beginGame := map[string]interface{}{
 		"userID": c.UserID,
 		"gameID": c.GameID,
 	}
 
+	fmt.Println("BEGINNING GAME WITH ID ", c.GameID)
+
 	bytesRepresentation, err := json.Marshal(beginGame)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	resp, err := http.Post("http://localhost:8080/typeracer", "application/json", bytes.NewBuffer(bytesRepresentation))
+	server := fmt.Sprintf("http://%s:%v/typeracer", host, port)
+	resp, err := http.Post(server, "application/json", bytes.NewBuffer(bytesRepresentation))
+	fmt.Println("RESPONSE:", resp)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -125,7 +166,7 @@ func beginGame(c *ClientState) int {
 		log.Fatalln(readErr)
 	}
 
-	gs := GameState{c.GameID, false, make(map[string]ClientState), "test string."}
+	gs := GameState{c.GameID, false, make(map[string]ClientState), []byte("")}
 
 	jErr := json.Unmarshal(body, &gs)
 	if jErr != nil {
@@ -134,8 +175,12 @@ func beginGame(c *ClientState) int {
 
 	fmt.Println(gs)
 
-	return gs.ID
+	// Set Game ID From Server Response
+	*&c.GameID = gs.ID
+
+	return &gs
 }
+
 
 func main() {
 
@@ -166,8 +211,12 @@ func main() {
 
 	c := ClientState{nick, gameID, 0, "", false}
 
+	fmt.Println("Sending state", c)
+
 	/* return new gameID if -1 specified */
-	c.GameID = beginGame(&c)
+	gs := beginGame(&c, host, port)
+	c.GameID = *&gs.ID
+	s := *&gs.String
 
 	/* Open Keyboard */
 	err := keyboard.Open()
@@ -178,14 +227,14 @@ func main() {
 
 	chars := make([]int32, 0)
 
-	_s := "test string."
+	//_s := "test string."
 
-	s := []byte(_s)
+	//s := []byte(_s)
 
 	for {
 		/* clear screen, print prompt */
 		//fmt.Print("\033[H\033[2J")
-		fmt.Println("Quote:", _s)
+		fmt.Println("Quote:", string(s))
 		res := checkInput(chars, s)
 
 		char, key, err := keyboard.GetKey()
@@ -208,12 +257,15 @@ func main() {
 		}
 
 		c.UserInput = string(chars)
-		fmt.Println(c)
+		fmt.Println("SENDING TO GAME",c.GameID)
 		game := sendState(&c, host, port)
-		fmt.Println("GAME:", game)
-		fmt.Println("GAME:", game["Over"])
-		if game["Over"] == true {
+		//c.GameID = game.ID.(int)
+		c.GameID = *&game.ID
+		fmt.Println("GAME:", c.GameID)
+		fmt.Println("GAME:", *&game.Over)
+		if *&game.Over == true {
 			fmt.Println("GAME OVER")
+			gameOver(gs)
 			break
 		}
 	}
