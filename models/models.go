@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type ClientState struct {
 	UserID         string `json:"UserID"`
 	GameID         int    `json:"GameID"`
