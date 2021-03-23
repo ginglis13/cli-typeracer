@@ -14,11 +14,12 @@ import (
 )
 
 type GameState struct {
-	//Message string
-	ID int
-	Over bool
-	Clients map[string]ClientState // take length to verify max of 4 participants
-	String []byte // the string/paragraph to type
+	ID int `json:"ID"`
+	Over bool `json:"Over"`
+	Clients map[string]ClientState `json:"Clients"` // take length to verify max of 4 participants
+	String []byte `json:"String"` // the string/paragraph to type
+	Winner []byte `json:"Winner"`
+	StrLen int `json:"StrLen"`
 	// also use the progress attribute to check against other players
 }
 
@@ -28,41 +29,32 @@ type ClientState struct {
 	Progress int `json:"Progress"` // length of correct input to show comparison to other players
 	UserInput string `json:"UserInput"`
 	Complete bool `json:"Complete"` // indicates client has finished the input
-	//isCreate bool // indicates that the user is the game creator - for asking if they want to start another
+	IsLeader bool `json:"IsLeader"`
+	WPM float64    `json:"WPM"`
 }
 
 // Display Game Over Message, Winner, WPM, menu options to start over
 func gameOver(gs *GameState) {
 	fmt.Print("\033[H\033[2J")
 	fmt.Println(strings.Repeat("#", 8), "GAME OVER", strings.Repeat("#", 8))
-	fmt.Println("Winner: ")
+	fmt.Printf("Winner:\t")
+	color.Green(string(*&gs.Winner))
 	fmt.Println("Player WPM: ")
 	finalGameState := *&gs.Clients
-	fmt.Println(finalGameState)
 	// Print WPM
 	for client, state := range finalGameState {
-		fmt.Printf("%10s: %5v WPM\n", client, state.Progress)
+		fmt.Printf("%10s: %.3v WPM\n", client, state.WPM)
 	}
 
 }
 
 func sendState(c *ClientState, host string, port int) *GameState {
 
-	/*
-	message := map[string]interface{}{
-		"userID": c.UserID,
-		"userInput": c.UserInput,
-		"complete": c.Complete,
-		"gameID": c.GameID,
-	}
-	*/
-
 	bytesRepresentation, err := json.Marshal(&c)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	//server := fmt.Sprintf("http://%s:%v/typeracer/%v", host, port, c.GameID)
 	server := fmt.Sprintf("http://%s:%v/typeracer", host, port)
 	resp, err := http.Post(server, "application/json", bytes.NewBuffer(bytesRepresentation))
 	if err != nil {
@@ -70,19 +62,12 @@ func sendState(c *ClientState, host string, port int) *GameState {
 
 	}
 
-	/*
-	var result map[string]interface{}
-
-	json.NewDecoder(resp.Body).Decode(&result)
-	return result
-	*/
-
 	body, readErr := ioutil.ReadAll(resp.Body)
 	if readErr != nil {
 		log.Fatalln(readErr)
 	}
 
-	gs := GameState{c.GameID, false, make(map[string]ClientState), []byte("")}
+	gs := GameState{c.GameID, false, make(map[string]ClientState), []byte(""), []byte(""), 0}
 
 	jErr := json.Unmarshal(body, &gs)
 	if jErr != nil {
@@ -107,7 +92,6 @@ func delInput(chars []int32) []int32{
 	}
 }
 
-/* TODO: space is 0 in chars, but ascii 32 in s */
 func checkInput(chars []int32, s []byte) bool {
 	var cs string
 	for _, v := range chars{
@@ -122,6 +106,7 @@ func checkInput(chars []int32, s []byte) bool {
 		/* check str len */
 		if i > len(s) - 1 {
 			res = false
+			break
 		/* found a match */
 		} else if v == int32(s[i]) {
 			res = true
@@ -130,6 +115,7 @@ func checkInput(chars []int32, s []byte) bool {
 			res = true
 		} else {
 			res = false
+			break
 		}
 	}
 
@@ -166,7 +152,7 @@ func beginGame(c *ClientState, host string, port int) *GameState {
 		log.Fatalln(readErr)
 	}
 
-	gs := GameState{c.GameID, false, make(map[string]ClientState), []byte("")}
+	gs := GameState{c.GameID, false, make(map[string]ClientState), []byte(""), []byte(""), 0}
 
 	jErr := json.Unmarshal(body, &gs)
 	if jErr != nil {
@@ -209,7 +195,7 @@ func main() {
 		fmt.Scanf("%s", &nick)
 	}
 
-	c := ClientState{nick, gameID, 0, "", false}
+	c := ClientState{nick, gameID, 0, "", false, false, 0}
 
 	fmt.Println("Sending state", c)
 
@@ -252,7 +238,7 @@ func main() {
 		if res && len(chars) == len(s){
 			fmt.Println("Game over.")
 			c.Complete = true
-			sendState(&c, host, port)
+			//sendState(&c, host, port)
 			//break
 		}
 
@@ -263,9 +249,10 @@ func main() {
 		c.GameID = *&game.ID
 		fmt.Println("GAME:", c.GameID)
 		fmt.Println("GAME:", *&game.Over)
+		fmt.Println("GAME:", *&game)
 		if *&game.Over == true {
 			fmt.Println("GAME OVER")
-			gameOver(gs)
+			gameOver(game)
 			break
 		}
 	}
