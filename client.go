@@ -22,14 +22,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var addr = flag.String("addr", "localhost:8888", "http service address")
-
 type ClientCliArgs struct {
 	nick string
 	host string
 	port int
 	gameID int
 }
+
+var addr = flag.String("addr", "localhost:8888", "http service address")
 
 func parseArgs() ClientCliArgs {
 	args := ClientCliArgs{}
@@ -102,10 +102,19 @@ func checkInput(chars []int32, s []byte) bool {
 	return res
 }
 
-func keyboardInput(clientState *models.ClientState, inp chan struct{}) {
-	defer close(inp) 
+func keyboardInput(clientState *models.ClientState, inp chan bool) {
 	chars := make([]int32, 0)
+	/* Open Keyboard and receive input in background goroutine */
+	keyErr := keyboard.Open()
+	if keyErr != nil {
+		panic(keyErr)
+	}
+	defer keyboard.Close()
 	for {
+		if clientState.Complete {
+			inp <- true
+			break
+		}
 		char, key, err := keyboard.GetKey()
 		if err != nil {
 			panic(err)
@@ -122,8 +131,6 @@ func keyboardInput(clientState *models.ClientState, inp chan struct{}) {
 }
 
 func recvGameState(conn *websocket.Conn, clientState *models.ClientState, done chan bool) {
-	//done := make(chan struct{})
-	//defer close(done)
 	for {
 		var gs models.GameState
 		err := conn.ReadJSON(&gs)
@@ -133,6 +140,7 @@ func recvGameState(conn *websocket.Conn, clientState *models.ClientState, done c
 		s := gs.String
 		log.Printf("recv: %s", gs)
 		res := checkInput([]int32(clientState.UserInput), s)
+		log.Printf("RES: %v, LEN CS INPUT: %v, LEN S: %v\n", res, len(clientState.UserInput), len(s))
 		if res && len(clientState.UserInput) == len(s) {
 			clientState.Complete = true
 		}
@@ -166,6 +174,9 @@ func gameOver(gs *models.GameState) {
 	finalGameState := *&gs.Clients
 	// Print WPM
 	for client, state := range finalGameState {
+		if client == "" {
+			continue
+		}
 		fmt.Printf("%10s: %.3v WPM\n", client, state.WPM)
 	}
 
@@ -196,10 +207,9 @@ func main() {
 
 	host := fmt.Sprintf("%s:%v", args.host, args.port)
 
-	u := url.URL{Scheme: "ws", Host: host, Path: "/echo"}
+	u := url.URL{Scheme: "ws", Host: host, Path: "/typeracer"}
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	log.Printf("TYPE OF c: %T", c)
 	if err != nil {
 		log.Fatal("dial:", err)
 	}
@@ -212,17 +222,11 @@ func main() {
 	/* For receiving game state data from server */
 	go recvGameState(c, &clientState, done)
 
-	/* Open Keyboard and receive input in background goroutine */
-	keyErr := keyboard.Open()
-	if keyErr != nil {
-		panic(keyErr)
-	}
-	defer keyboard.Close()
 
-	inp := make(chan struct{})
+	inp := make(chan bool, 1)
 	go keyboardInput(&clientState, inp)
 
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(time.Second)  // TODO: time.Millisecond for feal time
 	defer ticker.Stop()
 
 
@@ -231,6 +235,7 @@ func main() {
 		case <-done:
 			return
 		case t := <-ticker.C:
+			log.Printf("[CLIENT COMPLETE]: %v\n", clientState.Complete)
 			err := c.WriteJSON(&clientState)
 			if err != nil {
 				log.Println("write:", err)
@@ -253,16 +258,6 @@ func main() {
 			case <-time.After(time.Second):
 			}
 			return
-		/* TODO : UNCOMMENT FOR REAL TIME w/o 1s delay
-		default:
-			err := c.WriteJSON(&clientState)
-			if err != nil {
-				log.Println("write:", err)
-				log.Println("t:", t)
-				return
-			}
-			log.Println(&clientState)
-		*/
 		}
 	}
 }
