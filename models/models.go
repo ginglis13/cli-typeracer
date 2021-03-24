@@ -1,9 +1,6 @@
 package models
 
-import (
-	"time"
-	"sync"
-)
+import "time"
 
 type ClientState struct {
 	UserID         string `json:"UserID"`
