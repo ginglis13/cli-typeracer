@@ -22,3 +22,10 @@ type GameState struct {
 	StrLen int `json:"StrLen"`
 	// also use the progress attribute to check against other players
 }
+
+type ClientCliArgs struct {
+	nick string
+	host string
+	port int
+	gameID int
+}
