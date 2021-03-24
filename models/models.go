@@ -6,7 +6,7 @@ type ClientState struct {
 	UserID         string `json:"UserID"`
 	GameID         int    `json:"GameID"`
 	Progress       int    `json:"Progress"` // length of correct input to show comparison to other players
-	UserInput      string `json:"UserInput"`
+	UserInput      []byte `json:"UserInput"`
 	Complete       bool   `json:"Complete"` // indicates client has finished the input
 	IsLeader	   bool   `json:"IsLeader"` 
 	WPM 		   float64    `json:"WPM"`
