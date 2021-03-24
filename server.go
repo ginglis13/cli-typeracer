@@ -14,6 +14,8 @@ import (
     "math/rand"
     "fmt"
     "io/ioutil"
+    "sync"
+
 
     "github.com/ginglis13/cli-typeracer/models"
 	"github.com/gorilla/websocket"
@@ -21,10 +23,11 @@ import (
 
 var addr = flag.String("addr", "localhost:8880", "http service address")
 
-
 var upgrader = websocket.Upgrader{} // use default options
 
-var gameState = models.GameState{0, false, make(map[string]*models.ClientState), []byte("test string.") /*getQuote()*/, []byte(""), time.Now() /*TODO*/, 2}
+var mutex = &sync.Mutex{}
+
+var gameState = models.GameState{0, false, make(map[string]*models.ClientState), []byte("test string.") /*getQuote()*/, []byte(""), time.Now() /*TODO*/, 2, false}
 
 func getQuote() []byte {
 	quoteNum := rand.Intn(10)
@@ -37,12 +40,49 @@ func getQuote() []byte {
 	return data
 }
 
+func startGame(conn *websocket.Conn) {
+	for {
+        var clientState models.ClientState
+		err := conn.ReadJSON(&clientState)
+        log.Println("RECEIVED", clientState)
+        //log.Println("GAME", gameState)
+        if err != nil {
+            log.Println("[ERROR] Unable to read JSON from client.")
+        }
+        // set leader on clientstate
+        if len(gameState.Clients) == 0 {
+            clientState.IsLeader = true
+        }
+
+
+        mutex.Lock()
+        gameState.Clients[clientState.UserID] = &clientState
+        mutex.Unlock()
+
+        if clientState.IsLeader && clientState.StartGame {
+            gameState.Started = true
+            break
+        }
+	    err = conn.WriteJSON(&gameState)
+        if err != nil {
+            log.Println("[ERROR] Unable to write JSON back to client.")
+        }
+
+
+    }
+
+}
+
 func typeracer(w http.ResponseWriter, r *http.Request) {
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Print("upgrade:", err)
 		return
 	}
+
+    startGame(c)
+
+    log.Printf("GAME STARTED?: %v", gameState.Started)
 	//defer c.Close()
 	for {
         var clientState models.ClientState
@@ -58,7 +98,9 @@ func typeracer(w http.ResponseWriter, r *http.Request) {
             clientState.IsLeader = true
         }
 
+        mutex.Lock()
         gameState.Clients[clientState.UserID] = &clientState
+        mutex.Unlock()
 
         if clientState.Complete || gameState.Over {
             elapsedTime := time.Now().Sub(gameState.StartTime).Seconds()
@@ -75,11 +117,13 @@ func typeracer(w http.ResponseWriter, r *http.Request) {
 
             gameState.Over = true
             // Write game over to all clients in game (but the incoming client so as not to close connection)
+            mutex.Lock()
             for _, client := range gameState.Clients {
                 client.WPM = float64(gameState.StrLen)/elapsedTime*60.0
                 client.Complete = true
                 log.Println("GAME OVER SENT TO ", client.UserID)
             }
+            mutex.Unlock()
             // err = c.WriteJSON(&gameState)
             // if err != nil {
             //     log.Println("[ERROR] Unable to write JSON back to client.")
