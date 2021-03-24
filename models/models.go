@@ -19,7 +19,7 @@ type ClientState struct {
 type GameState struct {
 	ID      int `json:"ID"`
 	Over    bool `json:"Over"`
-	Clients sync.Map[string]*ClientState `json:"Clients"` // take length to verify max of 4 participants
+	Clients map[string]*ClientState `json:"Clients"` // take length to verify max of 4 participants
 	String  []byte `json:"String"`                // the string/paragraph to type
 	Winner []byte  `json:"Winner"`
 	StartTime	time.Time `json:"StartTime"`
