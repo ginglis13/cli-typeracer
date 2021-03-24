@@ -20,12 +20,6 @@ type GameState struct {
 	Winner []byte  `json:"Winner"`
 	StartTime	time.Time `json:"StartTime"`
 	StrLen int `json:"StrLen"`
+	Started		   bool    `json:"Started"`
 	// also use the progress attribute to check against other players
-}
-
-type ClientCliArgs struct {
-	nick string
-	host string
-	port int
-	gameID int
 }
