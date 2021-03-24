@@ -10,7 +10,6 @@ type ClientState struct {
 	Complete       bool   `json:"Complete"` // indicates client has finished the input
 	IsLeader	   bool   `json:"IsLeader"` 
 	WPM 		   float64    `json:"WPM"`
-	IsCorrect	   bool	  `json:IsCorrect` // input is recv in background thread. use bool for coloring for output to client
 }
 
 type GameState struct {
