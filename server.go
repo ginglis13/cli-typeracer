@@ -11,6 +11,9 @@ import (
 	"log"
 	"net/http"
     "time"
+    "math/rand"
+    "fmt"
+    "io/ioutil"
 
     "github.com/ginglis13/cli-typeracer/models"
 	"github.com/gorilla/websocket"
@@ -21,15 +24,26 @@ var addr = flag.String("addr", "localhost:8880", "http service address")
 
 var upgrader = websocket.Upgrader{} // use default options
 
-var gameState = models.GameState{0, false, make(map[string]*models.ClientState), []byte("test string."), []byte(""), time.Now() /*TODO*/, 2}
+var gameState = models.GameState{0, false, make(map[string]*models.ClientState), []byte("test string.") /*getQuote()*/, []byte(""), time.Now() /*TODO*/, 2}
 
-func echo(w http.ResponseWriter, r *http.Request) {
+func getQuote() []byte {
+	quoteNum := rand.Intn(10)
+	quotePath := fmt.Sprintf("quotes/%v.txt", quoteNum)
+	data, err := ioutil.ReadFile(quotePath)
+	if err != nil {
+		panic(err)
+	}
+
+	return data
+}
+
+func typeracer(w http.ResponseWriter, r *http.Request) {
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Print("upgrade:", err)
 		return
 	}
-	defer c.Close()
+	//defer c.Close()
 	for {
         var clientState models.ClientState
 		err := c.ReadJSON(&clientState)
@@ -46,7 +60,7 @@ func echo(w http.ResponseWriter, r *http.Request) {
 
         gameState.Clients[clientState.UserID] = &clientState
 
-        if clientState.Complete {
+        if clientState.Complete || gameState.Over {
             elapsedTime := time.Now().Sub(gameState.StartTime).Seconds()
             log.Printf("****** ELAPSED TIME %v *******\n", elapsedTime)
             log.Printf("****** WORD COUNT %v *******\n", gameState.StrLen)
@@ -63,12 +77,17 @@ func echo(w http.ResponseWriter, r *http.Request) {
             // Write game over to all clients in game (but the incoming client so as not to close connection)
             for _, client := range gameState.Clients {
                 client.WPM = float64(gameState.StrLen)/elapsedTime*60.0
-                if client.UserID == clientState.UserID {
-                    continue
-                }
                 client.Complete = true
                 log.Println("GAME OVER SENT TO ", client.UserID)
             }
+            // err = c.WriteJSON(&gameState)
+            // if err != nil {
+            //     log.Println("[ERROR] Unable to write JSON back to client.")
+            // }
+            // /* Clean up and break from connection for game */
+            // c.Close()
+            // gameState  = models.GameState{0, false, make(map[string]*models.ClientState), getQuote(), []byte(""), time.Now() /*TODO*/, 2}
+            // //break
         }
 
 		log.Printf("[GAME STATE]: %s", gameState)
@@ -81,8 +100,9 @@ func echo(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	flag.Parse()
 	log.SetFlags(0)
-	http.HandleFunc("/echo", echo)
+	http.HandleFunc("/typeracer", typeracer)
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }
