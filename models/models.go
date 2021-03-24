@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"time"
+	"sync"
+)
 
 type ClientState struct {
 	UserID         string `json:"UserID"`
@@ -16,7 +19,7 @@ type ClientState struct {
 type GameState struct {
 	ID      int `json:"ID"`
 	Over    bool `json:"Over"`
-	Clients map[string]*ClientState `json:"Clients"` // take length to verify max of 4 participants
+	Clients sync.Map[string]*ClientState `json:"Clients"` // take length to verify max of 4 participants
 	String  []byte `json:"String"`                // the string/paragraph to type
 	Winner []byte  `json:"Winner"`
 	StartTime	time.Time `json:"StartTime"`
