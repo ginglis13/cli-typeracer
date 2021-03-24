@@ -10,6 +10,7 @@ type ClientState struct {
 	Complete       bool   `json:"Complete"` // indicates client has finished the input
 	IsLeader	   bool   `json:"IsLeader"` 
 	WPM 		   float64    `json:"WPM"`
+	StartGame      bool   `json:"StartGame"`
 }
 
 type GameState struct {
