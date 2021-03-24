@@ -67,7 +67,7 @@ func delInput(chars []int32) []int32{
 	}
 }
 
-func checkInput(chars []int32, s []byte) bool {
+func checkInput(chars []int32, s []byte, clientState *models.ClientState) bool {
 	var cs string
 	for _, v := range chars{
 		/* space check */
@@ -96,6 +96,7 @@ func checkInput(chars []int32, s []byte) bool {
 
 	if res {
 		color.Green(cs)
+		clientState.Progress = len(chars)
 	} else {
 		color.Red(cs)
 	}
@@ -137,10 +138,10 @@ func recvGameState(conn *websocket.Conn, clientState *models.ClientState, done c
 		if err != nil {
 			log.Printf("Error reading receiver json")
 		}
+		printProgress(&gs)
 		s := gs.String
 		log.Printf("recv: %s", gs)
-		res := checkInput([]int32(clientState.UserInput), s)
-		log.Printf("RES: %v, LEN CS INPUT: %v, LEN S: %v\n", res, len(clientState.UserInput), len(s))
+		res := checkInput([]int32(clientState.UserInput), s, clientState)
 		if res && len(clientState.UserInput) == len(s) {
 			clientState.Complete = true
 		}
@@ -149,8 +150,6 @@ func recvGameState(conn *websocket.Conn, clientState *models.ClientState, done c
 		if gs.Clients[clientState.UserID].IsLeader {
 			clientState.IsLeader = true
 		}
-
-		log.Printf("GAME OVER STATUS: %v", gs.Over)
 
 		if gs.Over {
 			gameOver(&gs)
@@ -193,12 +192,80 @@ func gameOver(gs *models.GameState) {
 
 }
 
+func printProgress(gs *models.GameState) {
+	chars := len(gs.String)
+	for client, state := range *&gs.Clients {
+		if client == "" {
+			continue
+		}
+		// Do percentage based on 100
+		percentDone := float64(state.Progress) * 100.0 / float64(chars)
+		fmt.Printf("%10s: [%s%s]\n", client, strings.Repeat("#", int(percentDone)), strings.Repeat(" ", 100-int(percentDone)))
+	}
+}
+
+
+func startGame(conn *websocket.Conn, clientState *models.ClientState) { // Send your initial state to the game server
+	err := conn.WriteJSON(&clientState)
+	if err != nil {
+		log.Println("write:", err)
+		return
+	}
+
+	// Receive if you are leader
+	var gs models.GameState
+	err = conn.ReadJSON(&gs)
+	if err != nil {
+		log.Printf("[ERROR] Error reading receiver json for start game")
+	}
+	log.Println("Initial Game State", gs)
+	log.Println("Initial Client State", gs.Clients[clientState.UserID])
+
+	clientState.IsLeader = gs.Clients[clientState.UserID].IsLeader
+
+	// If leader, wait until all players joined, respond if so, then exit
+	if gs.Clients[clientState.UserID].IsLeader {
+		//var result string
+		fmt.Println("Press enter once everyone has joined.")
+		keyErr := keyboard.Open()
+		if keyErr != nil {
+			panic(keyErr)
+		}
+		defer keyboard.Close()
+
+		keyboard.GetKey()
+
+
+		clientState.StartGame = true
+		// Write that the game has been started back to server
+		err = conn.WriteJSON(&clientState)
+		if err != nil {
+			log.Printf("[ERROR] Error sending json for start game")
+		}
+
+
+	// If not leader, wait until gameState.Started, then exit
+	} else {
+		fmt.Print("\033[H\033[2J") // clear screen
+		fmt.Println("Waiting for the game leader to start..")
+		for {
+			conn.WriteJSON(&clientState)
+			conn.ReadJSON(&gs) 
+			if gs.Started {
+				break
+			}
+		}
+	}
+
+
+}
+
 func main() {
 	/* Parse Args */
 	args := parseArgs()
 
 	/* Initial Client State */
-	clientState := models.ClientState{args.nick, args.gameID, 0, "", false, false, 0}
+	clientState := models.ClientState{args.nick, args.gameID, 0, "", false, false, 0, false}
 
 	log.Println("Sending state", clientState)
 
@@ -207,15 +274,30 @@ func main() {
 
 	host := fmt.Sprintf("%s:%v", args.host, args.port)
 
-	u := url.URL{Scheme: "ws", Host: host, Path: "/typeracer"}
 
+
+	startU := url.URL{Scheme: "ws", Host: host, Path: "/startgame"}
+	conn, _, err := websocket.DefaultDialer.Dial(startU.String(), nil)
+	if err != nil {
+		log.Fatal("dial:", err)
+	}
+	startGame(conn, &clientState)
+	conn.Close()
+
+	u := url.URL{Scheme: "ws", Host: host, Path: "/typeracer"}
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		log.Fatal("dial:", err)
 	}
 	defer c.Close()
 
-	//done := make(chan struct{})
+	fmt.Println("Game starting in 3...")
+	time.Sleep(1 * time.Second)
+	fmt.Println("Game starting in 2...")
+	time.Sleep(1 * time.Second)
+	fmt.Println("Game starting in 1...")
+	time.Sleep(1 * time.Second)
+
 	done := make(chan bool, 1)
 	defer close(done)
 
