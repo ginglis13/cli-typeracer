@@ -41,7 +41,6 @@ func getQuote() []byte {
 }
 
 func startGame(w http.ResponseWriter, r *http.Request) {
-    log.Println("IN START GAME")
     gameState.StrLen = len(strings.Fields(string(gameState.String)))
 
 	conn, err := upgrader.Upgrade(w, r, nil)
