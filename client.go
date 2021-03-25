@@ -37,7 +37,7 @@ func parseArgs() ClientCliArgs {
 	flag.IntVar(&args.gameID, "g", 0, "Join game by game id")
 	flag.StringVar(&args.nick, "n", "", "Set nickname")
 	flag.StringVar(&args.host, "host", "localhost", "Host address/domain of game")
-	flag.IntVar(&args.port, "p", 8880, "Host port")
+	flag.IntVar(&args.port, "p", 8080, "Host port")
 	flag.Parse()
 	log.SetFlags(0)
 
@@ -45,11 +45,6 @@ func parseArgs() ClientCliArgs {
 	fmt.Println("Press ESC to quit")
 
 	fmt.Printf("Host is set to %v:%v\n", args.host, args.port)
-
-	if args.gameID == 0 {
-		fmt.Println("Enter the ID of the game you'd like to join, or enter -1 to start a new game:")
-		fmt.Scanf("%d", &args.gameID)
-	}
 
 	if args.nick == "" {
 		fmt.Println("Enter a nickname to join the game with:")
