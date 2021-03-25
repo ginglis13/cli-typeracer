@@ -21,7 +21,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var addr = flag.String("addr", "localhost:8880", "http service address")
+var addr = flag.String("addr", ":8080", "http service address")
 
 var upgrader = websocket.Upgrader{} // use default options
 
@@ -168,5 +168,6 @@ func main() {
 	log.SetFlags(0)
 	http.HandleFunc("/typeracer", typeracer)
 	http.HandleFunc("/startgame", startGame)
+    log.Printf("Listening on %s", *addr)
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }
