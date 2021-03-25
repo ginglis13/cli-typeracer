@@ -199,7 +199,6 @@ func printProgress(gs *models.GameState) {
 		//fmt.Printf("100 minus: %v\n", 100 - int(percentDone))
 		fmt.Printf("%10s: [%s🚘%s]\n", client, strings.Repeat("#", int(percentDone)), strings.Repeat(" ", 100-int(percentDone)))
 	}
- }
 }
 
 
