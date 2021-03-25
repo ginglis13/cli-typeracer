@@ -15,6 +15,7 @@ import (
 	"time"
 	"fmt"
 	"strings"
+	"sort"
 
 	"github.com/eiannone/keyboard"
 	"github.com/fatih/color"
@@ -183,15 +184,22 @@ func gameOver(gs *models.GameState) {
 
 func printProgress(gs *models.GameState) {
 	chars := len(gs.String)
-	for client, state := range *&gs.Clients {
+	keys := make([]string, 0, len(*&gs.Clients))
+	for k := range *&gs.Clients {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, client := range keys {
 		if client == "" {
 			continue
 		}
 		// Do percentage based on 100
-		percentDone := float64(state.Progress) * 100.0 / float64(chars)
+		percentDone := float64(*&gs.Clients[client].Progress) * 100.0 / float64(chars)
 		//fmt.Printf("100 minus: %v\n", 100 - int(percentDone))
 		fmt.Printf("%10s: [%s🚘%s]\n", client, strings.Repeat("#", int(percentDone)), strings.Repeat(" ", 100-int(percentDone)))
 	}
+ }
 }
 
 
