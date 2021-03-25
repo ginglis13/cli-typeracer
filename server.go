@@ -15,7 +15,7 @@ import (
     "fmt"
     "io/ioutil"
     "sync"
-
+    "strings"
 
     "github.com/ginglis13/cli-typeracer/models"
 	"github.com/gorilla/websocket"
@@ -27,7 +27,7 @@ var upgrader = websocket.Upgrader{} // use default options
 
 var mutex = &sync.Mutex{}
 
-var gameState = models.GameState{0, false, make(map[string]*models.ClientState), []byte("test string.") /*getQuote()*/, []byte(""), time.Now() /*TODO*/, 2, false}
+var gameState = models.GameState{0, false, make(map[string]*models.ClientState), /*[]byte("test string.")*/getQuote(), []byte(""), time.Now() /*TODO*/, 2, false}
 
 func getQuote() []byte {
 	quoteNum := rand.Intn(10)
@@ -40,14 +40,22 @@ func getQuote() []byte {
 	return data
 }
 
-func startGame(conn *websocket.Conn) {
+func startGame(w http.ResponseWriter, r *http.Request) {
+    log.Println("IN START GAME")
+    gameState.StrLen = len(strings.Fields(string(gameState.String)))
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Print("upgrade:", err)
+		return
+	}
+	defer conn.Close()
+    var clientState models.ClientState
 	for {
-        var clientState models.ClientState
 		err := conn.ReadJSON(&clientState)
-        log.Println("RECEIVED", clientState)
-        //log.Println("GAME", gameState)
         if err != nil {
-            log.Println("[ERROR] Unable to read JSON from client.")
+            log.Println("[ERROR] Unable to read JSON from client for START GAME: %v", clientState)
+            break
         }
         // set leader on clientstate
         if len(gameState.Clients) == 0 {
@@ -61,16 +69,16 @@ func startGame(conn *websocket.Conn) {
 
         if clientState.IsLeader && clientState.StartGame {
             gameState.Started = true
+	        err = conn.WriteJSON(&gameState)
+            gameState.StartTime = time.Now()
             break
         }
 	    err = conn.WriteJSON(&gameState)
         if err != nil {
-            log.Println("[ERROR] Unable to write JSON back to client.")
+            log.Println("[ERROR] Unable to write JSON back to client for START GAME %v", clientState)
+            break
         }
-
-
     }
-
 }
 
 func typeracer(w http.ResponseWriter, r *http.Request) {
@@ -79,16 +87,15 @@ func typeracer(w http.ResponseWriter, r *http.Request) {
 		log.Print("upgrade:", err)
 		return
 	}
+	defer c.Close()
 
-    startGame(c)
+    var clientState models.ClientState
 
-    log.Printf("GAME STARTED?: %v", gameState.Started)
-	//defer c.Close()
 	for {
-        var clientState models.ClientState
 		err := c.ReadJSON(&clientState)
         if err != nil {
             log.Println("[ERROR] Unable to read JSON from client.")
+            break
         }
 
 		log.Printf("[CLIENT STATE]: %s", clientState)
@@ -110,36 +117,48 @@ func typeracer(w http.ResponseWriter, r *http.Request) {
 
             clientState.WPM = float64(gameState.StrLen)/elapsedTime*60.0
 
-
             if len(gameState.Winner) == 0 { // Don't reset winner if someone else finishes
                 gameState.Winner = []byte(clientState.UserID)
             }
 
             gameState.Over = true
-            // Write game over to all clients in game (but the incoming client so as not to close connection)
+            // Write game over to all clients in game 
             mutex.Lock()
             for _, client := range gameState.Clients {
-                client.WPM = float64(gameState.StrLen)/elapsedTime*60.0
+                strLen := len(strings.Fields(string(client.UserInput)))
+                client.WPM = float64(strLen)/elapsedTime*60.0
                 client.Complete = true
                 log.Println("GAME OVER SENT TO ", client.UserID)
             }
             mutex.Unlock()
-            // err = c.WriteJSON(&gameState)
-            // if err != nil {
-            //     log.Println("[ERROR] Unable to write JSON back to client.")
-            // }
-            // /* Clean up and break from connection for game */
-            // c.Close()
-            // gameState  = models.GameState{0, false, make(map[string]*models.ClientState), getQuote(), []byte(""), time.Now() /*TODO*/, 2}
-            // //break
         }
 
+        // TODO: mutex is necessary for reading gamestate here - do I need this logging ?
+        mutex.Lock()
 		log.Printf("[GAME STATE]: %s", gameState)
-	    err = c.WriteJSON(&gameState)
+        mutex.Unlock()
+
+        mutex.Lock()
+        err = c.WriteJSON(&gameState)
+        log.Printf("[NOT OVER GAME STATE]: %s", gameState)
         if err != nil {
             log.Println("[ERROR] Unable to write JSON back to client.")
+            break
+        }
+        mutex.Unlock()
+
+        if gameState.Over {
+            time.Sleep(time.Millisecond * 100) // delay to reset server, must be more than the delay for sending message from client
+            gameState  = models.GameState{0, false, make(map[string]*models.ClientState), getQuote(), []byte(""), time.Now() /*TODO*/, 0, false}
         }
 
+        // Receive closed websocket message to gracefully end connection.
+        _, message, err := c.ReadMessage()
+		if err != nil {
+			log.Println("recv websock close:", err)
+            break
+		}
+		log.Printf("recv: %s", message)
     }
 }
 
@@ -148,5 +167,6 @@ func main() {
 	flag.Parse()
 	log.SetFlags(0)
 	http.HandleFunc("/typeracer", typeracer)
+	http.HandleFunc("/startgame", startGame)
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }

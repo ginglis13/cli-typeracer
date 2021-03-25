@@ -124,6 +124,8 @@ func keyboardInput(clientState *models.ClientState, inp chan bool) {
 		/* check for both KeyBackspace and KeyBackspace2 for delete */
 		} else if key == keyboard.KeyBackspace2 || key == keyboard.KeyBackspace || key == keyboard.KeyDelete {
 			chars = delInput(chars)
+		} else if key == keyboard.KeySpace {
+			chars = append(chars, int32(' '))
 		} else {
 			chars = append(chars, char)
 		}
@@ -137,26 +139,25 @@ func recvGameState(conn *websocket.Conn, clientState *models.ClientState, done c
 		err := conn.ReadJSON(&gs)
 		if err != nil {
 			log.Printf("Error reading receiver json")
+			break
 		}
-		printProgress(&gs)
+
+		/* Print UI */
 		s := gs.String
-		log.Printf("recv: %s", gs)
+		fmt.Print("\033[H\033[2J")
+		fmt.Println()
+		printProgress(&gs)
+		fmt.Println("\nQuote:\n")
+		fmt.Println(string(s))
+
+		/* Check user input */
 		res := checkInput([]int32(clientState.UserInput), s, clientState)
 		if res && len(clientState.UserInput) == len(s) {
 			clientState.Complete = true
 		}
 
-		// Check if server registered them as leader
-		if gs.Clients[clientState.UserID].IsLeader {
-			clientState.IsLeader = true
-		}
-
 		if gs.Over {
 			gameOver(&gs)
-			if err != nil {
-				log.Println("write close:", err)
-				return
-			}
 			done<-true
 			break
 		}
@@ -166,7 +167,9 @@ func recvGameState(conn *websocket.Conn, clientState *models.ClientState, done c
 
 func gameOver(gs *models.GameState) {
 	fmt.Print("\033[H\033[2J")
-	fmt.Println(strings.Repeat("#", 8), "GAME OVER", strings.Repeat("#", 8))
+	fmt.Println(strings.Repeat("*", 16), "GAME OVER", strings.Repeat("*", 16))
+	fmt.Println()
+	printProgress(*&gs)
 	fmt.Printf("Winner:\t")
 	color.Green(string(*&gs.Winner))
 	fmt.Println("Player WPM: ")
@@ -176,19 +179,10 @@ func gameOver(gs *models.GameState) {
 		if client == "" {
 			continue
 		}
-		fmt.Printf("%10s: %.3v WPM\n", client, state.WPM)
+		fmt.Printf("\t%10s: %.3f WPM\n", client, state.WPM)
 	}
 
-
-	/* TODO: allow player to play again with same players
-	if cs.IsLeader {
-		fmt.Println("You are the game leader.")
-		fmt.Println("Would you like to play again with the same players? [y/N]")
-		var s string
-		fmt.Scanf("%s", s)
-		fmt.Println(s)
-	}
-	*/
+	/* TODO: allow player to play again with same players? */
 
 }
 
@@ -200,12 +194,14 @@ func printProgress(gs *models.GameState) {
 		}
 		// Do percentage based on 100
 		percentDone := float64(state.Progress) * 100.0 / float64(chars)
-		fmt.Printf("%10s: [%s%s]\n", client, strings.Repeat("#", int(percentDone)), strings.Repeat(" ", 100-int(percentDone)))
+		//fmt.Printf("100 minus: %v\n", 100 - int(percentDone))
+		fmt.Printf("%10s: [%s🚘%s]\n", client, strings.Repeat("#", int(percentDone)), strings.Repeat(" ", 100-int(percentDone)))
 	}
 }
 
 
-func startGame(conn *websocket.Conn, clientState *models.ClientState) { // Send your initial state to the game server
+func startGame(conn *websocket.Conn, clientState *models.ClientState) { 
+	// Send your initial state to the game server
 	err := conn.WriteJSON(&clientState)
 	if err != nil {
 		log.Println("write:", err)
@@ -218,15 +214,12 @@ func startGame(conn *websocket.Conn, clientState *models.ClientState) { // Send 
 	if err != nil {
 		log.Printf("[ERROR] Error reading receiver json for start game")
 	}
-	log.Println("Initial Game State", gs)
-	log.Println("Initial Client State", gs.Clients[clientState.UserID])
 
 	clientState.IsLeader = gs.Clients[clientState.UserID].IsLeader
 
 	// If leader, wait until all players joined, respond if so, then exit
 	if gs.Clients[clientState.UserID].IsLeader {
-		//var result string
-		fmt.Println("Press enter once everyone has joined.")
+		fmt.Println("You are the game leader. Press enter once everyone has joined to start the countdown.")
 		keyErr := keyboard.Open()
 		if keyErr != nil {
 			panic(keyErr)
@@ -235,14 +228,14 @@ func startGame(conn *websocket.Conn, clientState *models.ClientState) { // Send 
 
 		keyboard.GetKey()
 
-
 		clientState.StartGame = true
+
 		// Write that the game has been started back to server
 		err = conn.WriteJSON(&clientState)
 		if err != nil {
 			log.Printf("[ERROR] Error sending json for start game")
 		}
-
+		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 
 	// If not leader, wait until gameState.Started, then exit
 	} else {
@@ -252,12 +245,11 @@ func startGame(conn *websocket.Conn, clientState *models.ClientState) { // Send 
 			conn.WriteJSON(&clientState)
 			conn.ReadJSON(&gs) 
 			if gs.Started {
+				conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				break
 			}
 		}
 	}
-
-
 }
 
 func main() {
@@ -265,9 +257,7 @@ func main() {
 	args := parseArgs()
 
 	/* Initial Client State */
-	clientState := models.ClientState{args.nick, args.gameID, 0, "", false, false, 0, false}
-
-	log.Println("Sending state", clientState)
+	clientState := models.ClientState{args.nick, args.gameID, 0, "", false, false, 0.0, false}
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
@@ -275,11 +265,10 @@ func main() {
 	host := fmt.Sprintf("%s:%v", args.host, args.port)
 
 
-
 	startU := url.URL{Scheme: "ws", Host: host, Path: "/startgame"}
 	conn, _, err := websocket.DefaultDialer.Dial(startU.String(), nil)
 	if err != nil {
-		log.Fatal("dial:", err)
+		log.Fatal("dial start: ", err)
 	}
 	startGame(conn, &clientState)
 	conn.Close()
@@ -287,7 +276,7 @@ func main() {
 	u := url.URL{Scheme: "ws", Host: host, Path: "/typeracer"}
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
-		log.Fatal("dial:", err)
+		log.Fatal("dial tr: ", err)
 	}
 	defer c.Close()
 
@@ -308,23 +297,27 @@ func main() {
 	inp := make(chan bool, 1)
 	go keyboardInput(&clientState, inp)
 
-	ticker := time.NewTicker(time.Second)  // TODO: time.Millisecond for feal time
+	ticker := time.NewTicker(time.Millisecond*20)  // TODO: time.Millisecond for feal time
+	//ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
-
 
 	for {
 		select {
 		case <-done:
+			c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			if err != nil {
+				log.Println("write close:", err)
+				return
+			}
 			return
 		case t := <-ticker.C:
-			log.Printf("[CLIENT COMPLETE]: %v\n", clientState.Complete)
 			err := c.WriteJSON(&clientState)
 			if err != nil {
 				log.Println("write:", err)
 				log.Println("t:", t)
 				return
 			}
-			log.Println(&clientState)
+			//log.Println(&clientState)
 		case <-interrupt:
 			log.Println("interrupt")
 
