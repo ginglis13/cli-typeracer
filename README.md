@@ -2,111 +2,29 @@
 
 cli for playing typeracer, and a server to host games on.
 
-At the moment, this is very bare bones and mostly skeleton code. Anyone can contribute if you want,
-but it might be difficult at this point in the project since there isn't much in place quite yet.
+### Goal of the Project
 
-The server currently accepts JSON requests which you can mess with if you'd like, and the client
-just does some simple checking (and uses colors) to implement some parts of typeracer
+The goal of this project was to be my first ~real~ project in Go. I have messed around with Go on and off
+for the past year, and made a small go program that was a copy of the tree linux utility. However, this is 
+the first "real" practical application I've made in Go. It makes use of Websockets, Goroutines, mutexes, etc.
+I've learned a lot about websockets and goroutines from doing this project, and my prior knowledge of using
+mutexes helped during development. I ended up using this project for  [Hacker in the Bazaar Project 2.](https://www3.nd.edu/~pbui/teaching/cse.40842.sp21/project02.html). Another goal of this project was to simply make a clone of typeracer. When I had first thought of this
+idea, I had been brainstorming applications that I could turn into CLI programs, and typeracer just so happened to be one of them.
+Go works well for this project due to the simplicity with which you can develop concurrent programs.
 
+### Unique Go Features in this Project
+
+- Goroutines
+  * used on the Client side for sending and receiving JSON messages from the Server
+  * used on the Server side for sending and receiving JSON messages from the Client
+  * used to place keyboard input in the background
 ### Installing Sauce
 
 First, install dependencies for the client:
 ```
 	go get -u github.com/eiannone/keyboard
 	go get -u github.com/fatih/color
+	go get -u github.com/ginglis13/cli-typeracer/models
 ```
 
-Run the client with `go run client.go` and the server with `go run server.go`. They do
-not communicate with each other at this point in the project.
-
-### Homebrew
-
-TODO: trcli-client
-TODO: trcli-server
-
-### AUR
-
-TODO: trcli-client
-TODO: trcli-server
-
-### Q's/Strat
-- should client verify input or server?
-  - currently client. leaving it as that. will put on server eventually if needed
-  - if this is the case, server will more or less just be there to connect users.
-- connecting multiple clients to same game
-  - generate game id or allow client to use 'password' to all join same game?
-  - real typeracer generates unique url to share w/ peeps
-  - use of goroutines
-- ensure that first finished client wins
-  - todo-ish - maybe it will just work ?
-- client - show status bar of how far they are in comparison to others
-  - use #'s * length of correct input entered, mod 20 ?
-
-### real typeracer
-- word-by-word checking rather than character-by-character
-  - so mark a word as correct once it is complete - no backspacing after (leaving this as last TODO)
-
-### client
-
-`main()`
-
-- host
-- port
-- maybe -nick [nick] -join [gameid]
-
-`join_game()`
-
-- input a game id to join w others
-- prompt for a nick if the user didn't specify in the cl args
-- send client state to server
-
-`create_game()`
-
-- return a game id to initialize a game for others to join
-- prompt for a nick if the user didn't specify in the cl args
-- send client state to server
-- **maybe just call join_game() w/ the newly created game id**
-```go
-type ClientState struct {
-	userID string
-	gameID int
-	progress int // length of correct input to show comparison to other players
-	userInput string // TODO: check input on client or server side
-	complete bool // indicates client has finished the input
-}
-```
-
-
-### server
-
-- REST API, thinking that the endpoint is the unique gameid
-  + thinking potentially switching to tcp if this implementation isn't ideal
-- look into `http.NewServeMux()` for routing req
-- or look into this alternative [mux](https://github.com/gorilla/mux#examples) pkg
-
-`init_game()`
-
-- should receive a game id, nickname
-  - if game id is -1, return a newly generated game id in response.
-	- response from server should send a quote, so this must include opening a file only if new game
-	- generate a new endpoint for that gameid (**not sure if possible**)
-    - else, return just the message, and the status of other players
-- should prompt the creator of the game to begin (w/ just like enter or something)
-- should probably start a new goroutine, esp w multiple games occurring simultaneously on server
-
-`end_game()`
-- check that one client with correct game id has sent a game state that indicates they finished
-- should stop game on all other clients
-- free the game id from the map
-  - maybe use a free list of game ids... or not, this app doesn't yet have to be that complicated
-
-`choose_quote()`
-
-- pick from list of quotes/phrases wtvr
-- prolly just a text file
-```go
-type GameState struct {
-	clients []*ClientState // take length to verify max of 4 participants
-	// also use the progress attribute to check against other players
-}
-```
+Run the client with `go run client.go` and the server with `go run server.go` to view options
