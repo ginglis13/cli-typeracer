@@ -43,6 +43,8 @@ func getQuote() []byte {
 func startGame(w http.ResponseWriter, r *http.Request) {
     gameState.StrLen = len(strings.Fields(string(gameState.String)))
 
+    gameState.String = getQuote()
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Print("upgrade:", err)
