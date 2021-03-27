@@ -148,7 +148,7 @@ func recvGameState(conn *websocket.Conn, clientState *models.ClientState, done c
 
 		/* Check user input */
 		res := checkInput([]int32(clientState.UserInput), s, clientState)
-		if res && len(clientState.UserInput) == len(s) {
+		if res && len(clientState.UserInput) == len(s) || gs.Over {
 			clientState.Complete = true
 		}
 
@@ -197,7 +197,7 @@ func printProgress(gs *models.GameState) {
 		// Do percentage based on 100
 		percentDone := float64(*&gs.Clients[client].Progress) * 100.0 / float64(chars)
 		//fmt.Printf("100 minus: %v\n", 100 - int(percentDone))
-		fmt.Printf("%10s: [%s🚘%s]\n", client, strings.Repeat("#", int(percentDone)), strings.Repeat(" ", 100-int(percentDone)))
+		fmt.Printf("%10s: [%s🚘%s🏁\n", client, strings.Repeat("#", int(percentDone)), strings.Repeat(" ", 100-int(percentDone)))
 	}
 }
 
