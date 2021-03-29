@@ -6,7 +6,7 @@ cli for playing typeracer, and a server to host games on.
 
 ### Goal of the Project
 
-The goal of this project was to be my first ~real~ project in Go. I have messed around with Go on and off
+The goal of this project was to be my first \~real\~ project in Go. I have messed around with Go on and off
 for the past year, and made a small go program that was a copy of the tree linux utility. However, this is
 the first "real" practical application I've made in Go. It makes use of Websockets, Goroutines, mutexes, etc.
 I've learned a lot about websockets and goroutines from doing this project, and my prior knowledge of using
